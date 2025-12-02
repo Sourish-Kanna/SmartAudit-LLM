@@ -1,45 +1,23 @@
-# main.py
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional
-import json
 import os
 import shutil
-import time
-import random
+from dotenv import load_dotenv
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # Import LlamaAuditSummarizer
-try:
-    from Llama.llama_audit_summary import LlamaAuditSummarizer
-except ImportError:
-    raise ImportError("LlamaAuditSummarizer not found. Ensure Llama/llama_audit_summary.py exists.")
+from llama.llama_audit_summary import LlamaAuditSummarizer
 
-# Import MistralAuditLogic (used internally by InvoiceAuditAgent)
-try:
-    from Mistral.audit_logic import MistralAuditLogic
-except ImportError:
-    raise ImportError("MistralAuditLogic not found. Ensure Mistral/audit_logic.py exists.")
-
-# Import InvoiceAuditAgent
-try:
-    from Mistral.mistral_audit_agent import InvoiceAuditAgent
-except ImportError:
-    raise ImportError("InvoiceAuditAgent not found. Ensure Mistral/mistral_audit_agent.py exists.")
+# Import Mistral Audit Components
+from mistral.mistral_audit_agent import InvoiceAuditAgent
 
 # Import parsers
-try:
-    from parsers.csv_parser import csv_parser
-except ImportError:
-    raise ImportError("csv_parser not found. Ensure parsers/csv_parser.py exists.")
-
-try:
-    from parsers.pdf_parser import pdf_parser
-except ImportError:
-    raise ImportError("pdf_parser not found. Ensure parsers/pdf_parser.py exists.")
+from parsers.csv_parser import csv_parser
+from parsers.pdf_parser import pdf_parser
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
