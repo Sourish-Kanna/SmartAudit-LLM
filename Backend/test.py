@@ -3,7 +3,7 @@ from parsers.csv_parser import csv_parser
 from parsers.pdf_parser import pdf_parser
 from llama.llama_audit_summary import LlamaAuditSummarizer
 from mistral.mistral_audit_agent import InvoiceAuditAgent
-from ChatSession.chat_session import ChatSession
+from chat_session.chat_session import ChatSession
 from rich import print
 from rich.console import Console
 from rich.markdown import Markdown
