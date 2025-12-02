@@ -90,7 +90,7 @@ Analyze the provided invoice audit JSON based on the following detection rules t
             audit_json.update({"fuzzy_insights": fuzzy.get("fuzzy_insights", [])})
 
         except Exception as e:
-            logger.error(f"❌ Failed to get or parse fuzzy insights: {e}")
+            logger.error(f"❌ Failed to get or parse fuzzy insights: {e}", exc_info=True)
             audit_json.update({
                 "fuzzy_insights_error": "Failed to generate or parse insights from the model.",
             })
