@@ -109,7 +109,7 @@ const FinancialAuditUI = () => {
         formData.append('pdf_file', pdfFile);
       }
 
-      const apiUrl = process.env.REACT_APP_API_URL;
+      const apiUrl = import.meta.env.VITE_API_URL;
 
       // Make a fetch call to the backend API
       const response = await fetch(`${apiUrl}/audit`, {
