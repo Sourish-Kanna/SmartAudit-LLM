@@ -1,4 +1,4 @@
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 class ChatSession:
     def __init__(self, system_prompt: str, model):

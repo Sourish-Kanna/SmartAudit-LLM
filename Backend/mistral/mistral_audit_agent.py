@@ -6,6 +6,10 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 from mistral.audit_logic import MistralAuditLogic
+import logging # <-- NEW: Import logging module
+
+# Get the existing logger instance for consistency
+logger = logging.getLogger("AuditApp") 
 
 
 class InvoiceAuditAgent:
@@ -86,7 +90,7 @@ Analyze the provided invoice audit JSON based on the following detection rules t
             audit_json.update({"fuzzy_insights": fuzzy.get("fuzzy_insights", [])})
 
         except Exception as e:
-            print(f"❌ Failed to get or parse fuzzy insights: {e}")
+            logger.error(f"❌ Failed to get or parse fuzzy insights: {e}")
             audit_json.update({
                 "fuzzy_insights_error": "Failed to generate or parse insights from the model.",
             })

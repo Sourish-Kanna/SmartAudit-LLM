@@ -1,8 +1,12 @@
 from langchain_groq import ChatGroq
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage # Corrected import
 from dotenv import load_dotenv
 import json
 import os
+import logging # <-- NEW: Import logging module
+
+# Get the existing logger instance for consistency
+logger = logging.getLogger("AuditApp") 
 
 class LlamaAuditSummarizer:
     def __init__(self, model: str = "llama-3.1-8b-instant", temperature: float = 0.5):
@@ -57,7 +61,7 @@ Begin your response directly with the "Legal Summary" heading.
     
     def chat(self, messages_text: str) -> str:
         """Send a chat message to the LLaMA model and return the response."""
-        print(messages_text)
+        logger.info(f"Delegated chat message: {messages_text[:100]}...") # <-- REPLACED logger.info
         response = self.chat_model.invoke([HumanMessage(content=messages_text)])
         return response.content
 
@@ -66,6 +70,9 @@ if __name__ == "__main__":
     from rich.console import Console
     from rich.markdown import Markdown
 
+    # Note: Added basic logging setup for standalone execution
+    logging.basicConfig(level=logging.INFO)
+    
     audit_json = {
         "summary": {
             "total_invoices": 2,

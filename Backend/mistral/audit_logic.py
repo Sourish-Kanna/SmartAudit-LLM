@@ -1,6 +1,10 @@
 import re
 from datetime import datetime
 from typing import List, Dict, Any
+import logging # <-- NEW: Import logging module
+
+# Get the existing logger instance for consistency
+logger = logging.getLogger("AuditApp") 
 
 
 class MistralAuditLogic:
@@ -20,7 +24,7 @@ class MistralAuditLogic:
             return float(match.group().replace(",", ""))
         
         except Exception as e:
-            print(f"❌ Failed to clean amount: {amount} → {e}")
+            logger.error(f"❌ Failed to clean amount: {amount} → {e}")
             return None
 
     def detect_total_mismatches(self) -> List[Dict[str, Any]]:
@@ -41,7 +45,7 @@ class MistralAuditLogic:
                             "severity": "high"
                         })
                 except Exception as e:
-                    print(f"Error in invoice {inv['invoice_id']}: {e}")
+                    logger.error(f"Error in invoice {inv['invoice_id']}: {e}")
         return issues
 
     def detect_missing_fields(self) -> List[Dict[str, str]]:
@@ -173,4 +177,4 @@ if __name__ == "__main__":
     result = audit.run_audit()
 
     import json
-    print(json.dumps(result, indent=2))
+    logger.info(json.dumps(result, indent=2))
