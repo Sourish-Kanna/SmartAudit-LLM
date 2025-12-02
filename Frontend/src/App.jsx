@@ -1,32 +1,115 @@
 import React, { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import { Upload } from 'lucide-react'; // Assuming you have lucide-react installed
+import { Upload } from 'lucide-react';
+
+/**
+ * Defines custom components for ReactMarkdown rendering to apply Tailwind styles.
+ * This object is defined outside the component to prevent re-creation on every render.
+ */
+const markdownComponents = {
+  // Style the main section headers (e.g., ## Legal Summary)
+  h2: ({ node, ...props }) => (
+    <h2
+      className="text-lg font-bold text-slate-100 mt-6 mb-2 pt-2 border-t border-slate-700/50 first:mt-0 first:pt-0 first:border-t-0"
+      {...props}
+    />
+  ),
+  // Style unordered lists (ul)
+  ul: ({ node, ...props }) => (
+    <ul
+      className="list-disc pl-5 space-y-1 text-slate-300"
+      {...props}
+    />
+  ),
+  // Style list items (li)
+  li: ({ node, ...props }) => (
+    <li
+      className="text-sm md:text-base leading-relaxed"
+      {...props}
+    />
+  ),
+  // Ensure strong text (e.g., **Compliance & Legal Fields:**) is distinct
+  strong: ({ node, ...props }) => (
+    <strong
+      className="text-slate-200 font-semibold"
+      {...props}
+    />
+  ),
+  // Ensure paragraphs have proper spacing
+  p: ({ node, ...props }) => (
+    <p
+      className="mt-2 mb-2"
+      {...props}
+    />
+  )
+};
+
+/**
+ * Renders an individual chat message bubble.
+ */
+const AuditMessage = ({ message, isLoading, nextMessageId }) => {
+  const isUser = message.sender === 'user';
+  const isAI = message.sender === 'ai';
+
+  const baseClasses = `p-3 md:p-4 rounded-lg max-w-[85%] break-words text-sm md:text-base`;
+  const senderClasses = isUser
+    ? 'bg-slate-700 text-slate-100 ml-auto border border-slate-600'
+    : isAI
+      ? 'bg-slate-800 text-slate-200 border border-slate-700'
+      : 'bg-slate-800/50 text-slate-300 border-l-4 border-slate-600';
+
+  // Handling the "Thinking..." state
+  if (isLoading && message.id === nextMessageId.current - 1) {
+    return (
+      <div className="p-4 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 w-fit">
+        <div className="flex items-center space-x-2">
+          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse delay-150"></div>
+          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse delay-300"></div>
+          <span className="text-sm">Thinking...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div key={message.id} className={`${baseClasses} ${senderClasses}`}>
+      {isAI ? (
+        <ReactMarkdown components={markdownComponents}>{message.text}</ReactMarkdown>
+      ) : (
+        message.text
+      )}
+    </div>
+  );
+};
+
 
 // FinancialAuditUI component provides an interface for financial audit operations.
 const FinancialAuditUI = () => {
-  // State to manage chat messages
+  // State management for core application data
   const [messages, setMessages] = useState([]);
-  // State for the input field value in the chat
   const [inputValue, setInputValue] = useState('');
-  // State to store information about the uploaded CSV file
   const [csvFile, setCsvFile] = useState(null);
-  // State to store information about the uploaded PDF file
   const [pdfFile, setPdfFile] = useState(null);
-  // State to manage loading indicator
   const [isLoading, setIsLoading] = useState(false);
-
-  // State for Mobile Tab Switching ('chat' or 'dashboard')
   const [activeTab, setActiveTab] = useState('chat');
 
-  // NEW: Single Ref for the hidden file input element
+  // References for DOM manipulation and unique IDs
   const fileInputRef = useRef(null);
+  const nextMessageId = useRef(0); 
 
   /**
-   * Handles file uploads for CSV and PDF types using a single input.
-   * Determines file type based on extension.
+   * Adds a new message to the chat interface, using a globally unique ID.
    */
-  const handleFileUpload = (event) => { // Removed 'type' argument
+  const addMessage = (text, sender) => {
+    const newId = nextMessageId.current++;
+    setMessages(prev => [...prev, { text, sender, id: newId }]);
+  };
+
+  /**
+   * Handles file uploads, validation, and status updates.
+   */
+  const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -39,78 +122,59 @@ const FinancialAuditUI = () => {
     } else if (fileExtension === 'pdf') {
       fileType = 'pdf';
     } else {
-      // Handle incorrect file type error
       fileInputRef.current.value = null;
-      const messageBox = document.createElement('div');
-      messageBox.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-      messageBox.innerHTML = `
-          <div class="bg-slate-800 p-6 rounded-lg shadow-xl border border-slate-700 text-slate-200">
-            <h3 class="text-lg font-semibold mb-3">File Upload Error</h3>
-            <p>Invalid file type. Please upload a CSV or PDF file.</p>
-            <button id="closeMessageBox" class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white">Close</button>
-          </div>
-        `;
-      document.body.appendChild(messageBox);
-      document.getElementById('closeMessageBox').onclick = () => document.body.removeChild(messageBox);
+      showCustomMessageBox('File Upload Error', 'Invalid file type. Please upload a CSV or PDF file.');
       return;
     }
 
-    const maxSize = 500 * 1024 * 1024; // 500MB in bytes
-
-    // Check if the file size exceeds the maximum allowed size
+    const maxSize = 500 * 1024 * 1024; // 500MB
     if (file.size > maxSize) {
-      // Custom message box logic (retained)
-      const messageBox = document.createElement('div');
-      messageBox.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-      messageBox.innerHTML = `
-        <div class="bg-slate-800 p-6 rounded-lg shadow-xl border border-slate-700 text-slate-200">
-          <h3 class="text-lg font-semibold mb-3">File Upload Error</h3>
-          <p>File too large (max 500MB). Please select a smaller file.</p>
-          <button id="closeMessageBox" class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white">Close</button>
-        </div>
-      `;
-      document.body.appendChild(messageBox);
-      document.getElementById('closeMessageBox').onclick = () => document.body.removeChild(messageBox);
+      showCustomMessageBox('File Upload Error', 'File too large (max 500MB). Please select a smaller file.');
       event.target.value = null;
       return;
     }
 
-    // Update state based on file type
     if (fileType === 'csv') {
-      setCsvFile(file); // Store the actual file object
+      setCsvFile(file);
     } else {
-      setPdfFile(file); // Store the actual file object
+      setPdfFile(file);
     }
 
-    // Clear input value to allow re-uploading the same file
     event.target.value = null;
-
-    // Add messages to the chat to indicate file upload and processing
     addMessage(`📁 Uploaded: ${fileName}`, 'user');
     addMessage('🔄 Processing document... Analysis will appear in the results panel.', 'system');
   };
 
   /**
-   * Adds a new message to the chat interface.
-   * @param {string} text - The content of the message.
-   * @param {string} sender - The sender of the message ('user', 'ai', or 'system').
+   * Displays a custom modal message box (to replace alert/confirm).
    */
-  const addMessage = (text, sender) => {
-    setMessages(prev => [...prev, { text, sender, id: Date.now() }]);
-  };
+  const showCustomMessageBox = (title, message) => {
+    const messageBox = document.createElement('div');
+    messageBox.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    messageBox.innerHTML = `
+        <div class="bg-slate-800 p-6 rounded-lg shadow-xl border border-slate-700 text-slate-200">
+          <h3 class="text-lg font-semibold mb-3">${title}</h3>
+          <p>${message}</p>
+          <button id="closeMessageBox" class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white">Close</button>
+        </div>
+      `;
+    document.body.appendChild(messageBox);
+    document.getElementById('closeMessageBox').onclick = () => document.body.removeChild(messageBox);
+  }
 
   /**
-   * Clears all messages from the chat interface.
+   * Clears all messages and file inputs.
    */
   const clearChat = () => {
     setMessages([]);
     setCsvFile(null);
     setPdfFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = null; // Use the single ref
+    nextMessageId.current = 0; // Reset counter
+    if (fileInputRef.current) fileInputRef.current.value = null;
   };
 
   /**
-   * Sends a user message to the backend API and handles the AI response.
+   * Sends a user message/files to the backend API and handles the AI response.
    */
   const sendMessage = async () => {
     if (inputValue.trim() === '' || isLoading) {
@@ -148,7 +212,11 @@ const FinancialAuditUI = () => {
       addMessage(data.response, 'ai');
     } catch (error) {
       console.error('Error sending message to backend:', error);
-      addMessage(`❌ Error: Could not get a response from the audit engine. ${error.message}`, 'system');
+      let errorMessage = error.message;
+      if (errorMessage.includes("Failed to fetch")) {
+        errorMessage = "Connection error. Please ensure the backend server is running on the correct address.";
+      }
+      addMessage(`❌ Error: Could not get a response from the audit engine. ${errorMessage}`, 'system');
     } finally {
       setIsLoading(false);
     }
@@ -172,13 +240,56 @@ const FinancialAuditUI = () => {
     }
   };
 
+  const MobileBottomNav = () => (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 p-2 flex justify-around z-50 pb-safe">
+      <button
+        onClick={() => setActiveTab('chat')}
+        className={`flex-1 p-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'chat' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
+      >
+        💬 Chat
+      </button>
+      <div className="w-4"></div>
+      <button
+        onClick={() => setActiveTab('dashboard')}
+        className={`flex-1 p-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
+      >
+        📋 Dashboard
+      </button>
+    </div>
+  );
+
+  const FileStatusDisplay = () => (
+    (csvFile || pdfFile) && (
+      <div className="mb-4 space-y-2">
+        {csvFile && (
+          <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2">
+            <div className="flex items-center space-x-3">
+              <span className="text-emerald-400">📊</span>
+              <p className="text-emerald-400 font-medium text-xs md:text-sm truncate max-w-[200px]">{csvFile.name}</p>
+            </div>
+            <button onClick={() => { setCsvFile(null); if (fileInputRef.current) fileInputRef.current.value = null; }} className="text-emerald-400 hover:text-red-400 px-2">✕</button>
+          </div>
+        )}
+        {pdfFile && (
+          <div className="flex items-center justify-between bg-red-500/10 border border-red-500/30 rounded-lg p-2">
+            <div className="flex items-center space-x-3">
+              <span className="text-red-400">📄</span>
+              <p className="text-red-400 font-medium text-xs md:text-sm truncate max-w-[200px]">{pdfFile.name}</p>
+            </div>
+            <button onClick={() => { setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = null; }} className="text-red-400 hover:text-red-300 px-2">✕</button>
+          </div>
+        )}
+      </div>
+    )
+  );
+
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden font-sans">
 
       {/* ---------------- LEFT SIDE: CHAT INTERFACE ---------------- */}
       <div className={`flex-1 flex flex-col h-full ${activeTab === 'dashboard' ? 'hidden md:flex' : 'flex'}`}>
 
-        {/* Chat Messages */}
+        {/* Chat Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-900/50 custom-scrollbar pb-20 md:pb-6">
           {messages.length === 0 ? (
             <div className="text-center py-16 text-slate-300">
@@ -187,27 +298,23 @@ const FinancialAuditUI = () => {
               <div className="text-slate-400 leading-relaxed max-w-sm mx-auto text-sm md:text-base">
                 Upload documents and start conversing to receive audit insights.
               </div>
+              <div className="mt-8">
+
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
               {messages.map((message) => (
-                <div
+                <AuditMessage
                   key={message.id}
-                  className={`p-3 md:p-4 rounded-lg max-w-[85%] break-words text-sm md:text-base ${message.sender === 'user'
-                      ? 'bg-slate-700 text-slate-100 ml-auto border border-slate-600'
-                      : message.sender === 'ai'
-                        ? 'bg-slate-800 text-slate-200 border border-slate-700'
-                        : 'bg-slate-800/50 text-slate-300 border-l-4 border-slate-600'
-                    }`}
-                >
-                  {message.sender === 'ai' ? (
-                    <ReactMarkdown rehypePlugins={[rehypeRaw]}>{message.text}</ReactMarkdown>
-                  ) : (
-                    message.text
-                  )}
-                </div>
+                  message={message}
+                  isLoading={isLoading}
+                  // Pass nextMessageId for the specific purpose of rendering the spinner
+                  nextMessageId={nextMessageId}
+                />
               ))}
               {isLoading && (
+                // This is the dedicated thinking indicator for when API call is pending
                 <div className="p-4 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 w-fit">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
@@ -224,29 +331,8 @@ const FinancialAuditUI = () => {
         {/* Chat Input and File Upload Section */}
         <div className="p-4 md:p-6 bg-slate-800/30 border-t border-slate-700/30 mb-14 md:mb-0">
 
-          {/* File Upload Status Display */}
-          {(csvFile || pdfFile) && (
-            <div className="mb-4 space-y-2">
-              {csvFile && (
-                <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-emerald-400">📊</span>
-                    <p className="text-emerald-400 font-medium text-xs md:text-sm truncate max-w-[200px]">{csvFile.name}</p>
-                  </div>
-                  <button onClick={() => { setCsvFile(null); if (fileInputRef.current) fileInputRef.current.value = null; }} className="text-emerald-400 hover:text-red-400 px-2">✕</button>
-                </div>
-              )}
-              {pdfFile && (
-                <div className="flex items-center justify-between bg-red-500/10 border border-red-500/30 rounded-lg p-2">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-red-400">📄</span>
-                    <p className="text-red-400 font-medium text-xs md:text-sm truncate max-w-[200px]">{pdfFile.name}</p>
-                  </div>
-                  <button onClick={() => { setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = null; }} className="text-red-400 hover:text-red-300 px-2">✕</button>
-                </div>
-              )}
-            </div>
-          )}
+          {/* File Upload Status Display (Refactored Component) */}
+          <FileStatusDisplay />
 
           {/* Clear Chat (Desktop Only) */}
           {messages.length > 0 && (
@@ -263,7 +349,7 @@ const FinancialAuditUI = () => {
             {/* Hidden Single File Input */}
             <input
               type="file"
-              accept=".csv, .pdf" // Accepts both file types
+              accept=".csv, .pdf"
               onChange={handleFileUpload}
               ref={fileInputRef}
               className="hidden"
@@ -305,7 +391,7 @@ const FinancialAuditUI = () => {
       {/* ---------------- RIGHT SIDE: DASHBOARD ---------------- */}
       <div className={`w-full md:w-1/2 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col border-l border-slate-700/30 h-full ${activeTab === 'chat' ? 'hidden md:flex' : 'flex'}`}>
 
-        {/* Header (retained for dashboard structure) */}
+        {/* Header */}
         <div className="bg-slate-800/80 p-4 border-b border-slate-600/30 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div>
@@ -320,7 +406,7 @@ const FinancialAuditUI = () => {
         </div>
 
         <div className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar pb-20 md:pb-6">
-          {/* Stats Grid (Simplified for brevity) */}
+          {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-8">
             <div className="bg-slate-800/60 p-3 md:p-4 rounded-xl border border-slate-700/50">
               <p className="text-slate-400 text-[10px] md:text-xs font-medium uppercase">Documents</p>
@@ -371,23 +457,10 @@ const FinancialAuditUI = () => {
       </div>
 
       {/* ---------------- MOBILE BOTTOM NAVIGATION ---------------- */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 p-2 flex justify-around z-50 pb-safe">
-        <button
-          onClick={() => setActiveTab('chat')}
-          className={`flex-1 p-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'chat' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
-        >
-          💬 Chat
-        </button>
-        <div className="w-4"></div>
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 p-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-slate-700 text-white' : 'text-slate-400'}`}
-        >
-          📋 Dashboard
-        </button>
-      </div>
+      <MobileBottomNav />
 
-      <style jsx>{`
+      {/* Styles (Moved out of component logic) */}
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
