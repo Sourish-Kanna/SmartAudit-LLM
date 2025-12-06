@@ -94,9 +94,12 @@ const FinancialAuditUI = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
 
+  // NEW STATE: State for chat session ID
+  const [sessionId, setSessionId] = useState(null);
+
   // References for DOM manipulation and unique IDs
   const fileInputRef = useRef(null);
-  const nextMessageId = useRef(0); 
+  const nextMessageId = useRef(0);
 
   /**
    * Adds a new message to the chat interface, using a globally unique ID.
@@ -134,6 +137,9 @@ const FinancialAuditUI = () => {
       return;
     }
 
+    // Reset session on new file upload to force a new audit
+    setSessionId(null);
+
     if (fileType === 'csv') {
       setCsvFile(file);
     } else {
@@ -163,12 +169,13 @@ const FinancialAuditUI = () => {
   }
 
   /**
-   * Clears all messages and file inputs.
+   * Clears all messages and file inputs, and resets the session ID.
    */
   const clearChat = () => {
     setMessages([]);
     setCsvFile(null);
     setPdfFile(null);
+    setSessionId(null); // Reset session ID
     nextMessageId.current = 0; // Reset counter
     if (fileInputRef.current) fileInputRef.current.value = null;
   };
@@ -186,30 +193,76 @@ const FinancialAuditUI = () => {
     setInputValue('');
     setIsLoading(true);
 
+    // Determine if this is a new audit/upload or the start of a stateless chat
+    const isNewAudit = csvFile || pdfFile || !sessionId;
+
     try {
-      const formData = new FormData();
-      formData.append('message', userMessage);
-      if (csvFile) {
-        formData.append('csv_file', csvFile);
-      }
-      if (pdfFile) {
-        formData.append('pdf_file', pdfFile);
-      }
-
       const apiUrl = import.meta.env.VITE_API_URL;
+      let response;
+      let data;
 
-      const response = await fetch(`${apiUrl}/audit`, {
-        method: 'POST',
-        body: formData,
-      });
+      if (isNewAudit) {
+        // --- SCENARIO 1: New Audit (Stateful) or Stateless Chat (Fallback) ---
+        const formData = new FormData();
+        formData.append('message', userMessage);
+        if (csvFile) { formData.append('csv_file', csvFile); }
+        if (pdfFile) { formData.append('pdf_file', pdfFile); }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`HTTP error! status: ${response.status}, detail: ${errorData.detail || 'Unknown error'}`);
+        response = await fetch(`${apiUrl}/audit`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`HTTP error! status: ${response.status}, detail: ${errorData.detail || 'Unknown error'}`);
+        }
+
+        data = await response.json();
+
+        // Handle Stateful Audit Response (files uploaded)
+        if (data.session_id) {
+          setSessionId(data.session_id);
+          // The API returns the main summary AND the initial conversational response
+          addMessage(data.response, 'ai'); // Main summary/report
+          addMessage(data.initial_chat_response, 'ai'); // Conversational answer
+
+          // Clear file state after successful processing
+          setCsvFile(null);
+          setPdfFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = null;
+
+        } else {
+          // Handle Stateless Fallback Response (no files uploaded)
+          setSessionId(null);
+          addMessage(data.response, 'ai');
+        }
+
+      } else {
+        // --- SCENARIO 2: Follow-up question in an existing Stateful Session ---
+        // Uses /chat/{session_id} endpoint
+
+        response = await fetch(`${apiUrl}/chat/${sessionId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: userMessage }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          // If session expired (404), reset session state
+          if (response.status === 404) {
+            setSessionId(null);
+          }
+          throw new Error(`HTTP error! status: ${response.status}, detail: ${errorData.detail || 'Unknown error'}`);
+        }
+
+        data = await response.json();
+        addMessage(data.response, 'ai');
       }
 
-      const data = await response.json();
-      addMessage(data.response, 'ai');
     } catch (error) {
       console.error('Error sending message to backend:', error);
       let errorMessage = error.message;
@@ -370,9 +423,9 @@ const FinancialAuditUI = () => {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               className="flex-1 bg-transparent outline-none text-slate-200 placeholder-slate-400 text-sm md:text-base min-w-0"
-              placeholder="Ask a question..."
+              placeholder={sessionId ? "Ask a follow-up question about the audit..." : "Ask a question or upload documents..."}
               disabled={isLoading}
             />
 
@@ -449,6 +502,14 @@ const FinancialAuditUI = () => {
                 <span className="text-slate-300">Engine</span>
                 <span className={`px-2 py-0.5 rounded-full text-xs ${isLoading ? 'bg-yellow-500/20 text-yellow-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                   {isLoading ? 'Processing' : 'Ready'}
+                </span>
+              </div>
+              
+              {/* NEW: Reactive Chat Session Status */}
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-300">Chat Session</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs ${sessionId ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                  {sessionId ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </div>
