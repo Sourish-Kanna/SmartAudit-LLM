@@ -179,3 +179,7 @@ async def continue_chat(session_id: str, message: Dict[str, str]):
     except Exception as e:
         logger.error(f"Error during chat turn for session {session_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal chat error.")
+
+@app.get("/")
+def home():
+    return {"message": "Welcome to the Financial Audit AI Backend!"}
