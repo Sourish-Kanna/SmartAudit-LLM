@@ -66,7 +66,7 @@ parsers/                # File input and parsing logic
 └── pdf_parser.py
 sample_data/            # Sample CSV and PDF invoices for testing
 llama/                  # Summary generation and prompt logic
-misrtal/                 # Audit tools and rule-based logic (Llama 3 just file name)
+misrtal/                # Audit tools and rule-based logic (Llama 3 just file name)
 README.md               # Project documentation
 requirements.txt        # Python dependencies
 test.py                 # Python test file
